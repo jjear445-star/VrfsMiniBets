@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VRFS Mini Bets</title>
+<style>
+:root{
+  --bg:#0f172a;
+  --panel:#111827;
+  --accent:#22c55e;
+  --accent-2:#3b82f6;
+  --text:#e5e7eb;
+  --text-dim:#94a3b8;
+  --danger:#ef4444;
+  --warn:#f59e0b;
+  --radius:12px;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; font-family:sans-serif; background:var(--bg); color:var(--text);
+}
+header{
+  padding:10px 15px; background:#0b1220; display:flex; justify-content:space-between; align-items:center;
+}
+h1{margin:0; font-size:18px}
+.btn{
+  cursor:pointer; border:none; padding:8px 12px; border-radius:var(--radius); background:var(--accent-2); color:white;
+}
+.btn.warn{background:var(--warn)}
+.btn.danger{background:var(--danger)}
+.container{padding:15px; max-width:800px; margin:auto}
+.card{background:var(--panel); padding:15px; border-radius:var(--radius); margin-bottom:15px}
+.game{display:flex; justify-content:space-between; align-items:center; padding:10px; background:#1f2937; border-radius:var(--radius); margin-bottom:10px}
+.hidden{display:none}
+input, select{
+  background:#0b1220; border:1px solid #333; color:var(--text); padding:8px; border-radius:var(--radius);
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>VRFS Mini Bets</h1>
+  <div id="balance">Balance: 0</div>
+</header>
+<div class="container">
+  <div class="card">
+    <h2>Games</h2>
+    <div id="gamesList"></div>
+  </div>
+  <div class="card hidden" id="adminPanel">
+    <h2>Admin Dashboard</h2>
+    <div>
+      <h3>Update Score</h3>
+      <select id="scoreGame"></select>
+      <input type="number" id="scoreHome" placeholder="Home Score">
+      <input type="number" id="scoreAway" placeholder="Away Score">
+      <button class="btn" id="updateScoreBtn">Update</button>
+    </div>
+    <hr>
+    <div>
+      <h3>Create Game</h3>
+      <input type="text" id="newHome" placeholder="Home Team">
+      <input type="text" id="newAway" placeholder="Away Team">
+      <button class="btn" id="createGameBtn">Create</button>
+    </div>
+    <hr>
+    <div>
+      <h3>End Betting</h3>
+      <select id="endGame"></select>
+      <button class="btn warn" id="endBetBtn">End Bet</button>
+    </div>
+  </div>
+</div>
+<script>
+let balance = parseInt(localStorage.getItem('balance')) || 10000;
+let games = JSON.parse(localStorage.getItem('games')) || [
+  {id: Date.now(), home:"Crystal Palace", away:"Derby County", scoreHome:0, scoreAway:0, open:true}
+];
+let bets = JSON.parse(localStorage.getItem('bets')) || [];
+let clickCount = 0;
+
+function saveData(){
+  localStorage.setItem('balance', balance);
+  localStorage.setItem('games', JSON.stringify(games));
+  localStorage.setItem('bets', JSON.stringify(bets));
+}
+
+function renderBalance(){
+  document.getElementById('balance').innerText = `Balance: ${balance}`;
+}
+function renderGames(){
+  const list = document.getElementById('gamesList');
+  list.innerHTML = '';
+  games.forEach(g=>{
+    const div = document.createElement('div');
+    div.className = 'game';
+    div.innerHTML = `
+      <div>
+        <strong>${g.home}</strong> vs <strong>${g.away}</strong> (${g.scoreHome} - ${g.scoreAway}) 
+        ${g.open ? '' : '<em style="color:gray">(Closed)</em>'}
+      </div>
+      ${g.open ? '<button class="btn betBtn" data-id="'+g.id+'">Bet</button>' : ''}
+    `;
+    list.appendChild(div);
+  });
+  document.querySelectorAll('.betBtn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      clickCount++;
+      if(clickCount>=5){
+        let pw = prompt("Enter admin password:");
+        if(pw === "vrfsbetvrfs717"){
+          document.getElementById('adminPanel').classList.remove('hidden');
+          renderAdminSelects();
+        }
+        clickCount=0;
+      } else {
+        let amt = parseInt(prompt("Bet amount:"));
+        if(!amt || amt<=0) return;
+        if(amt>balance){alert("Not enough balance."); return;}
+        let team = prompt("Bet on home or away? (home/away)");
+        if(team!=='home' && team!=='away') return;
+        bets.push({gameId:btn.dataset.id, team, amt});
+        balance -= amt;
+        saveData();
+        renderBalance();
+      }
+    });
+  });
+}
+
+function renderAdminSelects(){
+  const scoreSel = document.getElementById('scoreGame');
+  const endSel = document.getElementById('endGame');
+  scoreSel.innerHTML = '';
+  endSel.innerHTML = '';
+  games.forEach(g=>{
+    scoreSel.innerHTML += `<option value="${g.id}">${g.home} vs ${g.away}</option>`;
+    endSel.innerHTML += `<option value="${g.id}">${g.home} vs ${g.away}</option>`;
+  });
+}
+
+document.getElementById('updateScoreBtn').addEventListener('click',()=>{
+  const id = document.getElementById('scoreGame').value;
+  const gh = parseInt(document.getElementById('scoreHome').value);
+  const ga = parseInt(document.getElementById('scoreAway').value);
+  let game = games.find(x=>x.id == id);
+  if(game){game.scoreHome=gh; game.scoreAway=ga; saveData(); renderGames();}
+});
+
+document.getElementById('createGameBtn').addEventListener('click',()=>{
+  const h = document.getElementById('newHome').value.trim();
+  const a = document.getElementById('newAway').value.trim();
+  if(!h || !a) return;
+  games.push({id:Date.now(), home:h, away:a, scoreHome:0, scoreAway:0, open:true});
+  saveData();
+  renderGames();
+  renderAdminSelects();
+});
+
+document.getElementById('endBetBtn').addEventListener('click',()=>{
+  const id = document.getElementById('endGame').value;
+  let game = games.find(x=>x.id == id);
+  if(!game) return;
+  game.open = false;
+  bets.forEach(b=>{
+    if(b.gameId == id){
+      if((b.team==='home' && game.scoreHome > game.scoreAway) || (b.team==='away' && game.scoreAway > game.scoreHome)){
+        balance += b.amt*2;
+      }
+    }
+  });
+  bets = bets.filter(b=>b.gameId != id);
+  saveData();
+  renderGames();
+  renderBalance();
+});
+
+renderBalance();
+renderGames();
+</script>
+</body>
+</html>
